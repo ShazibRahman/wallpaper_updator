@@ -14,9 +14,11 @@ from datetime import datetime, timedelta
 
 import aiohttp
 import psutil
-from check_internet_connectivity import check_internet_connection
+from Decorators.check_internet_connectivity import check_internet_connection , check_internet_connection_async_decorator
 from clients.pixabay import Pixabay
 from clients.unsplash import download_random_image_unsplash
+
+WALLPAPER = "wallpaper"
 
 PYTHON_RUNNUNG_FROM_CRON = os.environ.get("PYTHON_RUNNUNG_FROM_CRON")
 
@@ -50,7 +52,7 @@ def log_uncaught_exceptions(exctype, value, traceback):
 sys.excepthook = log_uncaught_exceptions
 
 lock_file = f"{current_directory}/wallpaper_updator.lock"
-wallpaper_directory = f"{current_directory}/wallpaper"
+
 
 
 def check_pid_exists(pid):
@@ -201,14 +203,14 @@ async def download_random_image_with_cient(session: aiohttp.ClientSession, queue
     if client == "unsplash":
         return await download_random_image_unsplash(session,
                                                     get_random_tag_or_tag_from_sys_args_for_unsplash(),
-                                                    queue_no)
+                                                    queue_no,dir_path=wallpaper_directory)
     elif client == "pixabay":
-        return await Pixabay().get_images(session,
+        return await Pixabay(dir_patch=wallpaper_directory).get_images(session,
                                           get_random_tag_or_tag_from_sys_args_for_pixabay(),
                                           images=1,
                                           queue_no=queue_no)
 
-
+@check_internet_connection_async_decorator
 async def download_random_images(force=False, nums=10):
     """
     Downloads random images asynchronously using aiohttp.
@@ -223,10 +225,6 @@ async def download_random_images(force=False, nums=10):
     last_run_file_path = os.path.join(current_directory, "last_run.txt")
 
     # check if there is an internet connection
-    if not check_internet_connection():
-        logging.error("no internet connection available")
-        return
-
     # list wallpaper directory
     list_of_files_wallpaper_directory = os.listdir(wallpaper_directory)
 
@@ -276,7 +274,7 @@ def set_wallpaper():
     Returns:
         None
     """
-    file_list = os.listdir(os.path.join(current_directory, "wallpaper"))
+    file_list = os.listdir(os.path.join(current_directory, WALLPAPER))
 
     ## check if no images are there
     if len(file_list) == 0:
@@ -284,7 +282,7 @@ def set_wallpaper():
         return
     ## creating a dictionary of fileList with its respective timestamps
     file_list_with_timestamps: dict[str:float] = {
-        file: os.path.getmtime(os.path.join(current_directory, "wallpaper", file)) \
+        file: os.path.getmtime(os.path.join(current_directory, WALLPAPER, file)) \
         for file in file_list
     }
     file_list_with_normalized_timestamps: dict[str:float] = normalize_timestamps(file_list_with_timestamps)
@@ -292,7 +290,7 @@ def set_wallpaper():
     file_selected_for_wallpaper: str = weighted_choice_with_values(file_list_with_normalized_timestamps)
     print(file_selected_for_wallpaper, file_list_with_normalized_timestamps[file_selected_for_wallpaper])
 
-    image_path = os.path.join(current_directory, "wallpaper", file_selected_for_wallpaper)
+    image_path = os.path.join(current_directory, WALLPAPER, file_selected_for_wallpaper)
     logging.info("setting wallpaper to %s", image_path)
 
     task1 = subprocess.run(
@@ -471,7 +469,7 @@ async def main(is_forced=False):
     acquire_control()
     await download_random_images(is_forced)
     set_wallpaper()
-    clear_directory(os.path.join(current_directory, "wallpaper"))
+    clear_directory(os.path.join(current_directory, "%s" % WALLPAPER))
 
     if PYTHON_RUNNUNG_FROM_CRON:
         logging.info(
@@ -483,5 +481,10 @@ async def main(is_forced=False):
 
 
 if __name__ == "__main__":
+    WALLPAPER = "wallpaper"
+    wallpaper_directory = f"{current_directory}/{WALLPAPER}"
+    if not os.path.exists(wallpaper_directory):
+        os.makedirs(wallpaper_directory)
+
     asyncio.run(main(False))
     # asyncio.run(main(True))

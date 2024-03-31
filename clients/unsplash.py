@@ -1,11 +1,10 @@
 import asyncio
 import aiohttp
 import logging
-import os
 import uuid
 
 import os
-from retry import  retry
+from Decorators.retry import  retry
 
 def get_screen_resolution():
     cmd = "xrandr | grep '*' | cut -d' ' -f4"
@@ -16,14 +15,13 @@ def get_screen_resolution():
         width, height = 1920, 1080
     return width, height
 
-wallpaper = "wallpaper"
 
 website = "http://source.unsplash.com/random/{dimension}"
 
 
 @retry(3)
 async def download_random_image_unsplash(
-        session: aiohttp.ClientSession, tag: str,queue_no: int
+        session: aiohttp.ClientSession, tag: str,queue_no: int,dir_path:str
 ) -> int :
     """
     Downloads a random image using the provided aiohttp ClientSession.
@@ -63,11 +61,10 @@ async def download_random_image_unsplash(
         )
 
         # Download the image
-        dir_patch = os.path.join(os.path.dirname(__file__),"..", wallpaper)
-        if not os.path.exists(dir_patch):
-            os.makedirs(dir_patch)
+        if not os.path.exists(dir_path):
+            os.makedirs(dir_path)
         image_path = os.path.join(
-            dir_patch, f"{tag.replace(',', '_')}_{uuid.uuid4()}_unsplash.jpg"
+            dir_path, f"{tag.replace(',', '_')}_{uuid.uuid4()}_unsplash.jpg"
         )
         with open(image_path, "wb") as file:
             content = await response.read()

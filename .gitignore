@@ -3,6 +3,7 @@ wallpaperD
 *.log
 *.txt
 
+**wallpaper**
 __pycache__
 logger*
 .vscode

@@ -1,18 +1,17 @@
 import logging
-import time
 import os
 import uuid
 import aiohttp
-from check_internet_connectivity import check_internet_connection
+from Decorators.check_internet_connectivity import check_internet_connection
 import asyncio
-import  retry
 
 height,width = "2048x1080".split("x")
 api_key = "33208678-2727b1eb70c1c232cbf99b821"
-dir_patch = os.path.join(os.path.dirname(__file__),"..", "wallpaper")
+
 class Pixabay:
-    def __init__(self):
+    def __init__(self,dir_patch):
         self.api_key = api_key
+        self.dir_path = dir_patch
 
     async def get_images(self,session:aiohttp.ClientSession, query,images=5,queue_no=0):
         page =1
@@ -41,12 +40,14 @@ class Pixabay:
                 async with session.get(url) as response:
                     print(response.content_length)
                     print(response.status)
+                    print(self.dir_path)
                     if response.status == 200:
                         logging.info("Image downloaded for queue %s", self.queue_no)
-                        if not os.path.exists(dir_patch):
-                            os.makedirs(dir_patch)
+                        if not os.path.exists(self.dir_path):
+                            os.makedirs(self.dir_path)
+                        logging.info(self.dir_path)
                         image_path = os.path.join(
-                            dir_patch, f"{self.query.replace(',', '_')}_{uuid.uuid4()}_pixabay.jpg"
+                            self.dir_path, f"{self.query.replace(',', '_')}_{uuid.uuid4()}_pixabay.jpg"
                         )
                         with open(image_path, "wb") as file:
                             content = await response.read()
@@ -58,7 +59,8 @@ class Pixabay:
 
 async def main():
     async with aiohttp.ClientSession() as session:
-        pixabay = Pixabay()
+        pixabay = Pixabay(dir_patch=os.path.join(os.path.dirname(__file__),"..", 'wallpaperT'))
+        # pixabay.dir_path = os.path.join(os.path.dirname(__file__),"..", wallpaper)
         urls = await pixabay.get_images(session,"lights",5,queue_no=1)
         print(urls)
 
