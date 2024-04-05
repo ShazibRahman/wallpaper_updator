@@ -239,10 +239,10 @@ async def download_random_images(force=False, nums=10):
                     return
         except FileNotFoundError as error:
             last_run = 0
-            logging.error("erro reading last run file witn %s ", error)
+            logging.error("error reading last run file witn %s ", error)
 
     async with aiohttp.ClientSession() as session:
-        tasks = [download_random_image_with_cient(session, _, get_random_client()) for _ in range(10)]
+        tasks = [download_random_image_with_cient(session, _, get_random_client()) for _ in range(nums)]
         results = await asyncio.gather(*tasks, return_exceptions=True)
         logging.debug("results: %s", results)
 
@@ -467,7 +467,7 @@ async def main(is_forced=False):
     """
 
     acquire_control()
-    await download_random_images(is_forced)
+    await download_random_images(is_forced,nums=2)
     set_wallpaper()
     clear_directory(os.path.join(current_directory, "%s" % WALLPAPER))
 
