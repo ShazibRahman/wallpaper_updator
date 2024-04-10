@@ -5,7 +5,9 @@ and functionality of this module.
 import asyncio
 import logging
 import math
+import bisect
 import os
+import pathlib
 import random
 import subprocess
 import sys
@@ -83,7 +85,7 @@ def normalize_timestamps(timestamps: dict[str:float]) -> dict[str:float]:
     delta = max_timestamp - min_timestamp
     normalized_timestamps_dict: dict[str:float] = {key: (timestamp - min_timestamp) / delta for key, timestamp in
                                                    timestamps.items()}
-    return normalized_timestamps_dict
+    return dict(sorted(normalized_timestamps_dict.items(), key=lambda x: x[1]))
 
 
 def acquire_control():
@@ -200,15 +202,19 @@ def get_random_tag() -> str:
 
 
 async def download_random_image_with_cient(session: aiohttp.ClientSession, queue_no: int, client: str) -> int | None:
-    if client == "unsplash":
-        return await download_random_image_unsplash(session,
-                                                    get_random_tag_or_tag_from_sys_args_for_unsplash(),
-                                                    queue_no,dir_path=wallpaper_directory)
-    elif client == "pixabay":
-        return await Pixabay(dir_patch=wallpaper_directory).get_images(session,
-                                          get_random_tag_or_tag_from_sys_args_for_pixabay(),
-                                          images=1,
-                                          queue_no=queue_no)
+    match client:
+        case "unsplash":
+            return await download_random_image_unsplash(session,
+                                                        get_random_tag_or_tag_from_sys_args_for_unsplash(),
+                                                        queue_no,dir_path=wallpaper_directory)
+        case "pixabay":
+            return await Pixabay(dir_patch=wallpaper_directory).get_images(session,
+                                              get_random_tag_or_tag_from_sys_args_for_pixabay(),
+                                              images=1,
+                                              queue_no=queue_no)
+        case _:
+            raise ValueError(f"Invalid client: {client}")
+
 
 @check_internet_connection_async_decorator
 async def download_random_images(force=False, nums=10):
@@ -242,9 +248,27 @@ async def download_random_images(force=False, nums=10):
             logging.error("error reading last run file witn %s ", error)
 
     async with aiohttp.ClientSession() as session:
-        tasks = [download_random_image_with_cient(session, _, get_random_client()) for _ in range(nums)]
+        tasks = [download_random_image_with_cient(session, queue_no, get_random_client()) for queue_no in range(nums)]
         results = await asyncio.gather(*tasks, return_exceptions=True)
-        logging.debug("results: %s", results)
+
+        # here results contains asyncio TimeoutError if the download fails , handle the error and dont save the last run if more than 50% of the images are not downloaded
+        # we must also count the timeout errors
+
+        logging.info(f"{results =}")
+
+        # how can we count errors and non zereos in the results
+        error_count:int = 0
+
+        for result in results:
+            if not type(result)== type(0) or result <=0:
+                error_count+=1
+
+        if error_count >= 0.5 * nums:
+            logging.error("more than 50% of the images are not downloaded")
+            return
+
+
+
 
     with open(last_run_file_path, "w", encoding="utf-8") as file:
         file.write(str(time.time()))
@@ -256,7 +280,7 @@ def get_random_client() -> str:
 
 def weighted_choice_with_values(weighted_items: dict[str:float]):
     total_weight = sum(weighted_items.values())
-    rand_val = random.uniform(0, total_weight)
+    rand_val = random.uniform(0.60*total_weight, total_weight)
     cumulative_weight = 0
     for key, weight in weighted_items.items():
         cumulative_weight += weight
@@ -278,7 +302,7 @@ def set_wallpaper():
 
     ## check if no images are there
     if len(file_list) == 0:
-        logging.error("no images found in wallpaper directory")
+        logging.warning("no images found in wallpaper directory")
         return
     ## creating a dictionary of fileList with its respective timestamps
     file_list_with_timestamps: dict[str:float] = {
@@ -290,7 +314,7 @@ def set_wallpaper():
     file_selected_for_wallpaper: str = weighted_choice_with_values(file_list_with_normalized_timestamps)
     print(file_selected_for_wallpaper, file_list_with_normalized_timestamps[file_selected_for_wallpaper])
 
-    image_path = os.path.join(current_directory, WALLPAPER, file_selected_for_wallpaper)
+    image_path = pathlib.Path(current_directory).joinpath(WALLPAPER, file_selected_for_wallpaper)
     logging.info("setting wallpaper to %s", image_path)
 
     task1 = subprocess.run(
@@ -306,13 +330,6 @@ def set_wallpaper():
         text=True,
     )
 
-    logging.info(
-        "stderr: %s, stdout: %s, returncode: %s",
-        task1.stderr,
-        task1.stdout,
-        task1.returncode,
-    )
-
     task2 = subprocess.run(
         [
             "/usr/bin/gsettings",
@@ -326,16 +343,6 @@ def set_wallpaper():
         text=True,
     )
 
-    logging.info(
-        "stderr: %s, stdout: %s, returncode: %s",
-        task2.stderr,
-        task2.stdout,
-        task2.returncode,
-    )
-
-    logging.info("done")
-
-
 def clear_directory(path, max_size=100):
     """
     Clear the given directory if its size is greater than 200 MB.
@@ -348,10 +355,8 @@ def clear_directory(path, max_size=100):
     """
     unit = "MB"
     if (size := get_folder_size(path, unit)) <= max_size:
-        logging.info("folder size %s %s  is less than size %s MB", size, unit, max_size)
+        # if the size of the folder is less than 200 MB, then return without deleting any files
         return
-
-    logging.info("folder size %s %s is more than size %s MB", size, unit, max_size)
 
     logging.info(
         "clearing the wallpaper folder as it is taking more than %s MB of space",

@@ -19,7 +19,7 @@ def get_screen_resolution():
 website = "http://source.unsplash.com/random/{dimension}"
 
 
-@retry(3)
+@retry(retries=3,delay=1)
 async def download_random_image_unsplash(
         session: aiohttp.ClientSession, tag: str,queue_no: int,dir_path:str
 ) -> int :

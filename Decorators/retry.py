@@ -30,9 +30,11 @@ def retry(retries: int = 3, delay: float = 1) -> Callable:
                     if i == retries:
                         logging.error(f'Error: {repr(e)}.')
                         logging.error(f'"{func.__name__}()" failed after {retries} retries.')
-                        break
+                        # re raise the error after retries are exhausted
+                        raise e
+
                     else:
-                        logging.debug(f'Error: {repr(e)} -> Retrying...')
+                        logging.debug(f'Error: {repr(e)} -> retrying...')
                         await asyncio.sleep(delay)  # Add a delay before running the next iteration
 
         @wraps(func)
@@ -46,7 +48,8 @@ def retry(retries: int = 3, delay: float = 1) -> Callable:
                     if i == retries:
                         logging.error(f'Error: {repr(e)}.')
                         logging.error(f'"{func.__name__}()" failed after {retries} retries.')
-                        break
+                        # re raise the error after retries are exhausted
+                        raise e
                     else:
                         logging.debug(f'Error: {repr(e)} -> Retrying...')
                         sleep(delay)  # Add a delay before running the next iteration
