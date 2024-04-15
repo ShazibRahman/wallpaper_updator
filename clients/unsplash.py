@@ -42,7 +42,7 @@ async def download_random_image_unsplash(
     response = await session.get(
         website.format(dimension=dimension),
         params=tag,
-        timeout=5,
+        timeout=10,
         ssl=False
     )
     if response is None:

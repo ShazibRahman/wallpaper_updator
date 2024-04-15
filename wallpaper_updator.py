@@ -260,12 +260,14 @@ async def download_random_images(force=False, nums=10):
         error_count:int = 0
 
         for result in results:
-            if not type(result)== type(0) or result <=0:
+            if not type(result)== type(0) or result <0:
                 error_count+=1
 
         if error_count >= 0.5 * nums:
-            logging.error("more than 50% of the images are not downloaded")
+            logging.error("more than half of the images are not downloaded")
             return
+
+        # save the last run time to the file only if all the images are downloaded
 
 
 
