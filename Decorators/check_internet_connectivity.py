@@ -1,12 +1,14 @@
 import functools
 import socket
 import logging
+
+
 @functools.lru_cache(maxsize=1)
 def check_internet_connection():
     try:
         # Connect to a well-known website
         socket.create_connection(("www.google.com", 80))
-        logging.info("Internet connection is available")
+        logging.debug("Internet connection is available")
         return True
     except OSError:
         return False
@@ -22,6 +24,7 @@ def check_internet_connection_decorator(func):
     Returns:
         callable: The decorated function.
     """
+
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
         if check_internet_connection():
@@ -30,6 +33,7 @@ def check_internet_connection_decorator(func):
             print("No internet connection available.")
 
     return wrapper
+
 
 def check_internet_connection_async_decorator(func):
     """
@@ -40,12 +44,14 @@ def check_internet_connection_async_decorator(func):
     Returns:
 
     """
+
     @functools.wraps(func)
     async def wrapper(*args, **kwargs):
         if check_internet_connection():
             return await func(*args, **kwargs)
         else:
             print("No internet connection available.")
+
     return wrapper
 
 
