@@ -5,7 +5,7 @@ import uuid
 
 import os
 from Decorators.retry import  retry
-
+from config.config import config
 def get_screen_resolution():
     cmd = "xrandr | grep '*' | cut -d' ' -f4"
     result = os.popen(cmd).read().strip()
@@ -42,7 +42,7 @@ async def download_random_image_unsplash(
     response = await session.get(
         website.format(dimension=dimension),
         params=tag,
-        timeout=10,
+        timeout=config['timeout'],
         ssl=False
     )
     if response is None:

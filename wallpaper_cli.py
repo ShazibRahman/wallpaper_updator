@@ -36,7 +36,7 @@ def last_run(last_run):  # noqa
 
 
 @cli.command()
-@click.option("--show-logs", default=True, is_flag=True, help="Set the wallpaper")
+@click.option("--show-logs", default=True, is_flag=True, help="tail wallpaper_updator.log")
 def show_logs(show_logs):  # noqa
     if show_logs:
         os.system(f"tail -n 40 -f  {current_directory}/wallpaper_updator.log")

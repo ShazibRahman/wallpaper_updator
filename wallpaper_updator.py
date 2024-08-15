@@ -16,7 +16,8 @@ from datetime import datetime, timedelta
 import aiohttp
 import psutil
 from Decorators.check_internet_connectivity import check_internet_connection_async_decorator  # noqa
-from clients import pixabay, unsplash  # noqa
+from clients import pixabay, unsplash , pexels # noqa
+from config.config import config  # noqa
 
 WALLPAPER = "wallpaper"
 
@@ -25,7 +26,7 @@ PYTHON_RUNNING_FROM_CRON = os.environ.get("PYTHON_RUNNING_FROM_CRON")
 os.environ["DBUS_SESSION_BUS_ADDRESS"] = "unix:path=/run/user/1000/bus"
 
 current_directory = os.path.dirname(os.path.realpath(__file__))
-log_path = os.path.join(current_directory, "wallpaper_updator.log")
+log_path = os.path.join(current_directory, config['log_file'])
 formatter = logging.Formatter(
     "%(levelname)s - (%(asctime)s): %(message)s (Line: %(lineno)d [%(filename)s])"
 )
@@ -38,7 +39,7 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(levelname)s - (%(asctime)s): %(message)s (Line: %(lineno)d [%(filename)s])",
     datefmt="%m/%d/%Y %I:%M:%S %p",
-)
+)  # noqa
 
 stream_handler = logging.StreamHandler(sys.stdout)
 stream_handler.setFormatter(formatter)
@@ -51,7 +52,7 @@ def log_uncaught_exceptions(exctype, value, traceback):
 
 sys.excepthook = log_uncaught_exceptions
 
-lock_file = f"{current_directory}/wallpaper_updator.lock"
+lock_file = f"{current_directory}/{config['lock_file']}"
 
 
 def check_pid_exists(pid):
@@ -145,30 +146,7 @@ def log_uncaught_exceptions(exctype, value, traceback):
 
 
 sys.excepthook = log_uncaught_exceptions
-tags = [
-    "nature",
-    "tree",
-    "sky",
-    "beach",
-    "waterfall",
-    "night",
-    "mountain",
-    "garden",
-    "sunset",
-    "river",
-    "landscape",
-    "forest",
-    "rain",
-    "bird",
-    "ocean",
-    "fish in water",
-    "butterfly",
-    "flower",
-    "sunrise",
-    "skyline",
-    "northern lights",
-    "forest rain"
-]
+tags = config["tags"]
 
 tag_already_used = set()
 
@@ -218,6 +196,15 @@ async def download_random_image_with_client(session: aiohttp.ClientSession, queu
                     images=1,
                     queue_no=queue_no)
             )
+        case "pexels":
+            return await pexels.PexelsImageDownloader(
+                query=get_random_tag_or_tag_from_sys_args_for_pixabay(),
+                session=session,
+                queue=queue_no,
+                directory=wallpaper_directory,
+                target_resolution=(1920, 1080),
+                per_page=15
+            ).download_and_resize_images(1)
         case _:
             raise ValueError(f"Invalid client: {client}")
 
@@ -235,7 +222,7 @@ async def download_random_images(force=False, nums=10):
     Returns:
         None
     """
-    last_run_file_path = os.path.join(current_directory, "last_run.txt")
+    last_run_file_path = os.path.join(current_directory, config["last_run_file"])
 
     # check if there is an internet connection
     # list wallpaper directory
@@ -249,8 +236,8 @@ async def download_random_images(force=False, nums=10):
                 last_run = float(data_read) if data_read else 0
 
                 time_diff = time.time() - last_run
-                least_time_diff_to_run_hrs = 24
-                least_time_diff_to_run = least_time_diff_to_run_hrs * 60 * 60 - 60  # 60 seconds buffer
+                least_time_diff_to_run_hrs = config["run_after_every_hour"]
+                least_time_diff_to_run = least_time_diff_to_run_hrs * 60 * 60
 
                 if time_diff < least_time_diff_to_run:
                     # logging.info(f"last run was less than {least_time_diff_to_run_hrs} hours ago")
@@ -285,7 +272,7 @@ async def download_random_images(force=False, nums=10):
 
 
 def get_random_client() -> str:
-    return random.choice(["unsplash"])
+    return random.choice(["pexels"])
 
 
 def weighted_choice_with_values(weighted_items: dict[str:float]):
@@ -439,12 +426,10 @@ def get_folder_size(folder_path, unit="MB"):
     return convert_size(total_size, unit)
 
 
-async def main(is_forced=False):
+async def main():
     """
     Asynchronous function that serves as the entry point of the program.
 
-    Args:
-        is_forced (bool, optional): A flag indicating whether the download of random images should be forced.
         Defaults to False.
 
     Returns:
@@ -452,9 +437,10 @@ async def main(is_forced=False):
     """
 
     acquire_control()
-    await download_random_images(is_forced, nums=2)
+    await download_random_images(config['force_download'], nums=config['no_of_images_to_download'])
     set_wallpaper()
-    clear_directory(os.path.join(current_directory, WALLPAPER.strip()))
+    clear_directory(os.path.join(current_directory, WALLPAPER.strip()),
+                    no_of_days_int=config['not_delete_from_last_day'])
 
     if PYTHON_RUNNING_FROM_CRON:
         logging.debug(
@@ -466,13 +452,13 @@ async def main(is_forced=False):
 
 
 if __name__ == "__main__":
-    WALLPAPER = os.environ.get("FOLDER_PATH", "wallpaperT")
+    WALLPAPER = os.environ.get("FOLDER_PATH", "wallpaper")
 
     wallpaper_directory = f"{current_directory}/{WALLPAPER}"
     if not os.path.exists(wallpaper_directory):
         os.makedirs(wallpaper_directory)
 
-    asyncio.run(main(False))
+    asyncio.run(main())
     # asyncio.run(main(True))
 
     print(convert_size(234, unit="KB", rounding=100))
