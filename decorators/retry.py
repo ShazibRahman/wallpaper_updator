@@ -1,5 +1,5 @@
-import logging
 import asyncio
+import logging
 from functools import wraps
 from time import sleep
 from typing import Callable, Any, Union

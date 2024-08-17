@@ -174,3 +174,4 @@ cython_debug/
 
 *.out
 .idea
+/config/secrets.py

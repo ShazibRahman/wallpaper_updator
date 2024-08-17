@@ -1,28 +1,30 @@
 import asyncio
-import aiohttp
 import logging
+import os
 import uuid
 
-import os
-from Decorators.retry import  retry
+import aiohttp
 from config.config import config
+from decorators.retry import retry
+
+
 def get_screen_resolution():
     cmd = "xrandr | grep '*' | cut -d' ' -f4"
-    result = os.popen(cmd).read().strip()
+    result = os.popen(cmd).read().strip() # well this doesnt work when you run your script through a cron job because cron job does not have access to the display and also not on windows or mac so you need to find a better way to get the screen resolution
     try:
         width, height = map(int, result.split('x'))
     except ValueError:
-        width, height = 1920, 1080
+        width, height = 1920, 1080 # default resolution if the command fails
     return width, height
 
 
 website = "http://source.unsplash.com/random/{dimension}"
 
 
-@retry(retries=3,delay=1)
+@retry(retries=3, delay=1)
 async def download_random_image_unsplash(
-        session: aiohttp.ClientSession, tag: str,queue_no: int,dir_path:str
-) -> int :
+        session: aiohttp.ClientSession, tag: str, queue_no: int, dir_path: str
+) -> int:
     """
     Downloads a random image using the provided aiohttp ClientSession.
 
@@ -77,15 +79,15 @@ async def download_random_image_unsplash(
             queue_no,
         )
         return -1
-    return  queue_no
+    return queue_no
 
-async  def main():
+
+async def main():
     async with aiohttp.ClientSession() as session:
-        tasks = [download_random_image_unsplash(session,"lights",queue_no=_+1) for _ in range(10)]
+        tasks = [download_random_image_unsplash(session, "lights", queue_no=_ + 1) for _ in range(10)]
 
-        results =  await asyncio.gather(*tasks)
+        results = await asyncio.gather(*tasks)
         print(results)
-
 
 
 if __name__ == "__main__":

@@ -15,9 +15,9 @@ from datetime import datetime, timedelta
 
 import aiohttp
 import psutil
-from Decorators.check_internet_connectivity import check_internet_connection_async_decorator  # noqa
-from clients import pixabay, unsplash , pexels # noqa
+from clients import pixabay, unsplash, pexels  # noqa
 from config.config import config  # noqa
+from decorators.check_internet_connectivity import check_internet_connection_async_decorator  # noqa
 
 WALLPAPER = "wallpaper"
 
@@ -39,7 +39,7 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(levelname)s - (%(asctime)s): %(message)s (Line: %(lineno)d [%(filename)s])",
     datefmt="%m/%d/%Y %I:%M:%S %p",
-)  # noqa
+)
 
 stream_handler = logging.StreamHandler(sys.stdout)
 stream_handler.setFormatter(formatter)

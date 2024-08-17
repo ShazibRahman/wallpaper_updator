@@ -1,9 +1,10 @@
+import asyncio
 import logging
 import os
 import uuid
+
 import aiohttp
-from Decorators.check_internet_connectivity import check_internet_connection
-import asyncio
+from decorators.check_internet_connectivity import check_internet_connection
 
 height, width = "1920x1080".split("x")
 api_key = "33208678-2727b1eb70c1c232cbf99b821"

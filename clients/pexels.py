@@ -1,12 +1,14 @@
 import asyncio
-import uuid
+import logging
+import os
+from hashlib import sha256
+from io import BytesIO
 
 import aiohttp
 from PIL import Image
-from io import BytesIO
-import os
-import logging
-from hashlib import sha256
+from config.config import config
+from decorators.retry import retry
+from config.secrets import secrets
 
 
 async def _download_image(session, url):
@@ -16,7 +18,7 @@ async def _download_image(session, url):
             image = Image.open(BytesIO(data))
             return image
         else:
-            print(f"Failed to download image from {url}")
+            logging.error(f"Failed to download image from {url}")
             return None
 
 
@@ -28,7 +30,6 @@ def check_if_image_already_exists(url_hash, image_dir):
 
 
 class PexelsImageDownloader:
-    api_key = "GC4RmyQ9lkpbscsus4eWzj8Lgrh6gALyPuKcaTsAnOxgnGiGjcFpDOuA"
 
     def __init__(self, query, queue: int, session: aiohttp.ClientSession, directory, target_resolution=(1920, 1080),
                  per_page=15):
@@ -37,7 +38,7 @@ class PexelsImageDownloader:
         self.per_page = per_page
         self.api_url = 'https://api.pexels.com/v1/search'
         self.headers = {
-            'Authorization': self.api_key
+            'Authorization': secrets["pexel_api_key"]
         }
         self.image_dir = directory
         self.count = 0
@@ -69,13 +70,14 @@ class PexelsImageDownloader:
         threshold = -100  # This can be adjusted based on preference
         return width_diff >= threshold and height_diff >= threshold
 
+    @retry(retries=3, delay=1)
     async def download_and_resize_images(self, no_of_images: int):
         async with aiohttp.ClientSession(headers=self.headers) as session:
             params = {
                 'query': self.query,
                 'per_page': self.per_page,
             }
-            async with session.get(self.api_url, params=params) as response:
+            async with session.get(self.api_url, params=params, timeout=config['timeout']) as response:
                 if response.status == 200:
                     data = await response.json()
                     photos = data.get('photos', [])
@@ -107,5 +109,5 @@ class PexelsImageDownloader:
 # Usage example
 if __name__ == "__main__":
     downloader = PexelsImageDownloader(query='nature', directory='downloaded_images', target_resolution=(1920, 1080),
-                                       per_page=15)
+                                       per_page=15, queue=0, session=aiohttp.ClientSession())
     asyncio.run(downloader.download_and_resize_images(5))

@@ -1,6 +1,7 @@
-from datetime import datetime
-import click
 import os
+from datetime import datetime
+
+import click
 
 current_directory = os.path.dirname(os.path.realpath(__file__))
 
