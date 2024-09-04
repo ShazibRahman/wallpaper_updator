@@ -285,6 +285,30 @@ def weighted_choice_with_values(weighted_items: dict[str:float]):
             return key
 
 
+def delete_current_wallpaper():
+    """
+    Deletes the current wallpaper by reading the path from the "wallpaper_path.txt" file.
+
+    Returns:
+        None
+    """
+    wallpaper_path_file = os.path.join(current_directory, "wallpaper_path.txt")
+    if os.path.exists(wallpaper_path_file):
+        with open(wallpaper_path_file, "r", encoding="utf-8") as file:
+            wallpaper_path = file.read().strip()
+            if os.path.exists(wallpaper_path):
+                os.remove(wallpaper_path)
+            else:
+                logging.warning("Wallpaper path does not exist: %s", wallpaper_path)
+    else:
+        logging.warning("Wallpaper path file does not exist: %s", wallpaper_path_file)
+
+
+def write_to_file(file_path: str, data: str):
+    with open(file_path, "w", encoding="utf-8") as file:
+        file.write(data)
+
+
 def set_wallpaper():
     """
     Sets the wallpaper by randomly selecting an image from the "wallpaper" directory.
@@ -292,13 +316,14 @@ def set_wallpaper():
     Returns:
         None
     """
-    file_list = os.listdir(os.path.join(current_directory, WALLPAPER))
+    file_list = os.listdir(os.path.join(current_directory, WALLPAPER).strip())
     if len(file_list) == 0:
         logging.warning("no images found in wallpaper directory")
         return
 
     image_path = pathlib.Path(current_directory).joinpath(WALLPAPER, random.choice(file_list))
     logging.debug("setting wallpaper to %s", image_path)
+    write_to_file(os.path.join(current_directory, "wallpaper_path.txt"), str(image_path))
 
     subprocess.run(
         [
@@ -360,7 +385,7 @@ def clear_directory(path, no_of_days_int: int = 10):
                             "deleting %s because modified date %s is greater than %s days",
                             file_path,
                             modified_datetime,
-                            n_days.day,
+                            no_of_days_int,
                         )
                         os.remove(file_path)
 

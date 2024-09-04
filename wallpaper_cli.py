@@ -2,6 +2,7 @@ import os
 from datetime import datetime
 
 import click
+from wallpaper_updator import delete_current_wallpaper as del_cur_walp  , set_wallpaper # noqa
 
 current_directory = os.path.dirname(os.path.realpath(__file__))
 
@@ -41,6 +42,14 @@ def last_run(last_run):  # noqa
 def show_logs(show_logs):  # noqa
     if show_logs:
         os.system(f"tail -n 40 -f  {current_directory}/wallpaper_updator.log")
+
+
+@cli.command()
+@click.option("--delete-current-wallpaper", default=True, is_flag=True, help="Delete the current wallpaper")
+def delete_current_wallpaper(delete_current_wallpaper):
+    if delete_current_wallpaper:
+        del_cur_walp()
+        set_wallpaper()
 
 
 if __name__ == "__main__":
