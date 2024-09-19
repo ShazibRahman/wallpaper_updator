@@ -462,10 +462,10 @@ async def main():
     """
 
     acquire_control()
-    await download_random_images(config['force_download'], nums=config['no_of_images_to_download'])
-    set_wallpaper()
     clear_directory(os.path.join(current_directory, WALLPAPER.strip()),
                     no_of_days_int=config['not_delete_from_last_day'])
+    await download_random_images(config['force_download'], nums=config['no_of_images_to_download'])
+    set_wallpaper()
 
     if PYTHON_RUNNING_FROM_CRON:
         logging.debug(

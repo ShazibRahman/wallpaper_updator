@@ -56,6 +56,19 @@ def check_if_image_already_exists(url_hash: str, data: dict) -> bool:
     return False
 
 
+def clear_old_data():
+    data = read_json_file(ALREADY_DOWNLOADED_IMAGES_DATA_PATH)
+    current_time = time.time()
+    key_to_delete = [key for key, value in data.items() if current_time - value > config['clear_images_data_after_days'] * 24 * 60 * 60]
+
+    for key in key_to_delete:
+        del data[key]
+
+    with open(ALREADY_DOWNLOADED_IMAGES_DATA_PATH, 'w') as file:
+        for key, value in data.items():
+            file.write(f'{key}:{value}\n')
+
+
 class PexelsImageDownloader:
 
     def __init__(self, query, queue: int, session: aiohttp.ClientSession, directory, target_resolution=(1920, 1080),
@@ -72,6 +85,7 @@ class PexelsImageDownloader:
         self.queue = queue
         self.session = session
         self._create_directory()
+        clear_old_data()
         self.data_from_file = read_json_file(ALREADY_DOWNLOADED_IMAGES_DATA_PATH)
 
     def _create_directory(self):
