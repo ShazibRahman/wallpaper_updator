@@ -17,6 +17,7 @@ import aiohttp
 import psutil
 from clients import pixabay, unsplash, pexels  # noqa
 from config.config import config  # noqa
+from decorators.add_tag_used_count import add_tag_used_count_return_tag_with_least_usage
 from decorators.check_internet_connectivity import check_internet_connection_async_decorator  # noqa
 
 WALLPAPER = "wallpaper"
@@ -159,7 +160,7 @@ def get_random_tag_or_tag_from_sys_args_for_unsplash():
         str: The randomly chosen tag or the tag from the system arguments, followed by ",dark".
     """
 
-    return f"{sys.argv[1] if len(sys.argv) > 1 else get_random_tag()},dark"
+    return f"{sys.argv[1] if len(sys.argv) > 1 else get_random_tag(tags)},dark"
 
 
 def get_random_tag_or_tag_from_sys_args_for_pixabay():
@@ -169,16 +170,11 @@ def get_random_tag_or_tag_from_sys_args_for_pixabay():
     Returns:
         str: The randomly chosen tag or the tag from the system arguments.
     """
-    return sys.argv[1] if len(sys.argv) > 1 else get_random_tag()
+    return sys.argv[1] if len(sys.argv) > 1 else get_random_tag(tags)
 
-
-def get_random_tag() -> str:
-    global tag_already_used
-    tag = random.choice(tags)
-    while tag in tag_already_used:
-        tag = random.choice(tags)
-    tag_already_used.add(tag)
-    return tag
+@add_tag_used_count_return_tag_with_least_usage
+def get_random_tag(tags_to_be_used) -> str:
+    ...
 
 
 async def download_random_image_with_client(session: aiohttp.ClientSession, queue_no: int, client: str) -> int | None:
