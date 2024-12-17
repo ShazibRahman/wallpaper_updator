@@ -61,6 +61,7 @@ def clear_old_data():
     current_time = time.time()
     key_to_delete = [key for key, value in data.items() if current_time - value > config['clear_images_data_after_days'] * 24 * 60 * 60]
 
+    print(f"Deleting {len(key_to_delete)} images")
     for key in key_to_delete:
         del data[key]
 
@@ -107,43 +108,56 @@ class PexelsImageDownloader:
         target_width, target_height = self.target_resolution
         target_resolution_ratio: float = target_width / target_height
         original_resolution_ratio: float = original_width / original_height
-        if abs(target_resolution_ratio - original_resolution_ratio) < 0.3:
+        if abs(target_resolution_ratio - original_resolution_ratio) < 0.5:
             return True
         return False
 
     @retry(retries=3, delay=1)
     async def download_and_resize_images(self, no_of_images: int):
+
         async with aiohttp.ClientSession(headers=self.headers) as session:
             params = {
                 'query': self.query,
-                'per_page': self.per_page,
+                'per_page': self.per_page
             }
-            async with session.get(self.api_url, params=params, timeout=config['timeout']) as response:
-                if response.status == 200:
-                    data = await response.json()
-                    photos = data.get('photos', [])
-                    for i, photo in enumerate(photos):
-                        if self.count >= no_of_images:
-                            return self.queue
-                        image_url = photo['src']['original']  # Download the highest quality available
-                        file_name = f'{self.query}_pexels_%s.jpg'
-                        await self._process_image(session, image_url, file_name)
-                else:
-                    logging.info(f'Failed to retrieve photos. Status code: {response.status}')
+            for page in range(1,5):
+                params['page'] = page
+                print(f"{params=}")
+
+                async with session.get(self.api_url, params=params, timeout=config['timeout']) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        photos = data.get('photos', [])
+                        print(f"Downloaded {len(photos)} images")
+                        for i, photo in enumerate(photos):
+                            print(i)
+                            if self.count >= no_of_images:
+                                return self.queue
+                            image_url = photo['src']['original']  # Download the highest quality available
+                            file_name = f'{self.query}_pexels_%s.jpg'
+                            await self._process_image(session, image_url, file_name)
+                        # logging.info("processed %s images", self.count)
+                    else:
+                        logging.error(f'Failed to retrieve photos. Status code: {response.status}')
+
 
     async def _process_image(self, session, image_url, file_name):
+        url_hash: str = sha256(image_url.encode()).hexdigest()
+
+        if check_if_image_already_exists(url_hash, self.data_from_file):
+            logging.debug(f'Skipping {file_name % url_hash} as it already exists')
+            print(f"Skipped {file_name % url_hash} as it already exists")
+            return
         image = await _download_image(session, image_url)
         if image and self._is_resolution_close(image):
             resized_image = self._resize_image(image)
-            url_hash: str = sha256(image_url.encode()).hexdigest()
-            if check_if_image_already_exists(url_hash, self.data_from_file):
-                logging.debug(f'Skipping {file_name % url_hash} as it already exists')
-                return
+
             file_name_with_hash = file_name % url_hash
 
             self._save_image(resized_image, file_name_with_hash)
             write_a_single_line(url_hash, time.time())
             self.count += 1
+            print(f"Downloaded {self.count} images")
         else:
             logging.debug(f'Skipping {file_name} due to resolution mismatch')
 

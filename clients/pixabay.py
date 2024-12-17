@@ -34,7 +34,7 @@ class Pixabay:
         self.queue_no = queue_no
         logging.info("Downloading image with tag %s at queue %s", query, queue_no)
 
-        url: str = f"https://pixabay.com/api/?key={self.api_key}&q={query}&image_type=photo&page={page}&orientation=horizontal&min_width={width}&min_height={height}"
+        url: str = f"https://pixabay.com/api/?key={self.api_key}&q={query}&image_type=photo&page={page}"
 
         async with session.get(
                 url) as response:

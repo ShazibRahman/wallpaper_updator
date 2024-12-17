@@ -253,12 +253,23 @@ async def download_random_images(force=False, nums=10):
         # how can we count errors and non zereos in the results
         error_count: int = 0
 
+
         for result in results:
+            print(result)
             if not isinstance(result, int) or result < 0:
                 error_count += 1
 
-        if error_count >= 0.5 * nums:
-            logging.error("more than half of the images are not downloaded")
+        success_count: int =  len(results) - error_count
+
+
+        # if error_count >= 0.5 * nums:
+        #     logging.error("more than half of the images are not downloaded")
+        #     return
+
+        if success_count >0:
+            logging.info("%s images out of %s downloaded", success_count, nums)
+        else:
+            logging.error("%s images out of %s downloaded", success_count, nums)
             return
 
         # save the last run time to the file only if all the images are downloaded
@@ -481,5 +492,3 @@ if __name__ == "__main__":
 
     asyncio.run(main())
     # asyncio.run(main(True))
-
-    print(convert_size(234, unit="KB", rounding=100))

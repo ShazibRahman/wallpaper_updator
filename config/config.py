@@ -21,10 +21,10 @@ tags: list[str] = [
 ]
 config: dict[str:str | int | float | list] = {
     "check_internet_connection": True,
-    "run_after_every_hour": 16,
+    "run_after_every_hour": 20,
     "not_delete_from_last_day": 7,
     "tags": tags,
-    "no_of_images_to_download": 3,
+    "no_of_images_to_download": 2,
     "force_download": False,
     "log_file": "wallpaper_updator.log",
     "lock_file": "wallpaper_updator.lock",
