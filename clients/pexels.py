@@ -11,8 +11,9 @@ import aiohttp
 from PIL import Image
 from config.config import config
 from config.secrets import secrets
-from decorators.retry import retry
-
+from decorator_utils import singleton
+from decorator_utils import retry
+from decorator_utils.singelton import  singleton_with_no_parameters
 ALREADY_DOWNLOADED_IMAGES_DATA_PATH: str | pathlib.Path = pathlib.Path(__file__).parent.parent.joinpath(
     'data').joinpath(
     "pexels_images.txt")
@@ -70,10 +71,12 @@ def clear_old_data():
             file.write(f'{key}:{value}\n')
 
 
+@singleton_with_no_parameters
 class PexelsImageDownloader:
 
-    def __init__(self, query, queue: int, session: aiohttp.ClientSession, directory, target_resolution=(1920, 1080),
+    def __init__(self, query, session: aiohttp.ClientSession, directory, target_resolution=(1920, 1080),
                  per_page=100):
+        self.queue = None
         self.query = query
         self.target_resolution = target_resolution
         self.per_page = per_page
@@ -83,7 +86,6 @@ class PexelsImageDownloader:
         }
         self.image_dir = directory
         self.count = 0
-        self.queue = queue
         self.session = session
         self._create_directory()
         clear_old_data()
@@ -108,40 +110,41 @@ class PexelsImageDownloader:
         target_width, target_height = self.target_resolution
         target_resolution_ratio: float = target_width / target_height
         original_resolution_ratio: float = original_width / original_height
-        if abs(target_resolution_ratio - original_resolution_ratio) < 0.5:
+        if abs(target_resolution_ratio - original_resolution_ratio) < 0.01:
             return True
         return False
 
     @retry(retries=3, delay=1)
-    async def download_and_resize_images(self, no_of_images: int):
+    async def download_and_resize_images(self,queue_no, no_of_images: int,query):
+        self.queue = queue_no
+        query = query
+        
 
         async with aiohttp.ClientSession(headers=self.headers) as session:
             params = {
-                'query': self.query,
+                'query': query,
                 'per_page': self.per_page
             }
             for page in range(1,5):
                 params['page'] = page
-                print(f"{params=}")
 
                 async with session.get(self.api_url, params=params, timeout=config['timeout']) as response:
                     if response.status == 200:
                         data = await response.json()
                         photos = data.get('photos', [])
-                        print(f"Downloaded {len(photos)} images")
                         for i, photo in enumerate(photos):
-                            print(i)
-                            if self.count >= no_of_images:
-                                return self.queue
+                            
                             image_url = photo['src']['original']  # Download the highest quality available
-                            file_name = f'{self.query}_pexels_%s.jpg'
-                            await self._process_image(session, image_url, file_name)
+                            file_name = f'{query}_pexels_%s.jpg'
+                            result = await self._process_image(session, image_url, file_name,no_of_images)
+                            if result:
+                                return self.queue
                         # logging.info("processed %s images", self.count)
                     else:
                         logging.error(f'Failed to retrieve photos. Status code: {response.status}')
+            return None
 
-
-    async def _process_image(self, session, image_url, file_name):
+    async def _process_image(self, session, image_url, file_name,no_of_images):
         url_hash: str = sha256(image_url.encode()).hexdigest()
 
         if check_if_image_already_exists(url_hash, self.data_from_file):
@@ -158,6 +161,13 @@ class PexelsImageDownloader:
             write_a_single_line(url_hash, time.time())
             self.count += 1
             print(f"Downloaded {self.count} images")
+            if self.count >= no_of_images:
+                print("downloaded all images")
+
+            return True
+            
+            logging.debug(f'Downloaded {file_name_with_hash}')
+          
         else:
             logging.debug(f'Skipping {file_name} due to resolution mismatch')
 

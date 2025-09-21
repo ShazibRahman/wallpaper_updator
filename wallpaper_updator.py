@@ -2,6 +2,7 @@
 This is a module-level docstring that provides an overview of the purpose
 and functionality of this module.
 """
+
 import asyncio
 import logging
 import math
@@ -15,10 +16,13 @@ from datetime import datetime, timedelta
 
 import aiohttp
 import psutil
-from clients import pixabay, unsplash, pexels  # noqa
+from clients import pixabay, unsplash, pexels, wallhaven  # noqa
 from config.config import config  # noqa
 from decorators.add_tag_used_count import add_tag_used_count_return_tag_with_least_usage
-from decorators.check_internet_connectivity import check_internet_connection_async_decorator  # noqa
+from decorator_utils import check_connection_decorator
+from decorators.get_tag_as_per_circular_list_algo import (
+    GetTagAsPerCircularListAlgo,
+)  # noqa
 
 WALLPAPER = "wallpaper"
 
@@ -27,7 +31,7 @@ PYTHON_RUNNING_FROM_CRON = os.environ.get("PYTHON_RUNNING_FROM_CRON")
 os.environ["DBUS_SESSION_BUS_ADDRESS"] = "unix:path=/run/user/1000/bus"
 
 current_directory = os.path.dirname(os.path.realpath(__file__))
-log_path = os.path.join(current_directory, config['log_file'])
+log_path = os.path.join(current_directory, config["log_file"])
 formatter = logging.Formatter(
     "%(levelname)s - (%(asctime)s): %(message)s (Line: %(lineno)d [%(filename)s])"
 )
@@ -82,8 +86,10 @@ def normalize_timestamps(timestamps: dict[str:float]) -> dict[str:float]:
     min_timestamp: float = min(timestamps.values())
     max_timestamp: float = max(timestamps.values())
     delta = max_timestamp - min_timestamp
-    normalized_timestamps_dict: dict[str:float] = {key: (timestamp - min_timestamp) / delta for key, timestamp in
-                                                   timestamps.items()}
+    normalized_timestamps_dict: dict[str:float] = {
+        key: (timestamp - min_timestamp) / delta
+        for key, timestamp in timestamps.items()
+    }
     return dict(sorted(normalized_timestamps_dict.items(), key=lambda x: x[1]))
 
 
@@ -172,40 +178,50 @@ def get_random_tag_or_tag_from_sys_args_for_pixabay():
     """
     return sys.argv[1] if len(sys.argv) > 1 else get_random_tag(tags)
 
-@add_tag_used_count_return_tag_with_least_usage
+
 def get_random_tag(tags_to_be_used) -> str:
-    ...
+    return GetTagAsPerCircularListAlgo(tags_to_be_used).get_next_tag()
 
 
-async def download_random_image_with_client(session: aiohttp.ClientSession, queue_no: int, client: str) -> int | None:
+async def download_random_image_with_client(
+    session: aiohttp.ClientSession, queue_no: int, client: str
+) -> int | None:
     match client:
         case "unsplash":
-            return await unsplash.download_random_image_unsplash(session,
-                                                                 get_random_tag_or_tag_from_sys_args_for_unsplash(),
-                                                                 queue_no, dir_path=wallpaper_directory)
+            return await unsplash.download_random_image_unsplash(
+                session,
+                get_random_tag_or_tag_from_sys_args_for_unsplash(),
+                queue_no,
+                dir_path=wallpaper_directory,
+            )
         case "pixabay":
-            return await (
-                pixabay.Pixabay(dir_patch=wallpaper_directory)
-                .get_images(
-                    session,
-                    get_random_tag_or_tag_from_sys_args_for_pixabay(),
-                    images=1,
-                    queue_no=queue_no)
+            return await pixabay.Pixabay(dir_patch=wallpaper_directory).get_images(
+                session,
+                get_random_tag_or_tag_from_sys_args_for_pixabay(),
+                images=1,
+                queue_no=queue_no,
             )
         case "pexels":
             return await pexels.PexelsImageDownloader(
-                query=get_random_tag_or_tag_from_sys_args_for_pixabay(),
+                query="",
                 session=session,
-                queue=queue_no,
                 directory=wallpaper_directory,
                 target_resolution=(1920, 1080),
-                per_page=15
-            ).download_and_resize_images(1)
+                per_page=15,
+            ).download_and_resize_images(
+                queue_no, 1, get_random_tag_or_tag_from_sys_args_for_pixabay()
+            )
+        case "wallhaven":
+            return await wallhaven.WallhavenDownloader(
+                query="",
+                directory=wallpaper_directory,
+                session=session,
+            ).run(queue_no, 1, get_random_tag_or_tag_from_sys_args_for_pixabay())
         case _:
             raise ValueError(f"Invalid client: {client}")
 
 
-@check_internet_connection_async_decorator
+@check_connection_decorator
 async def download_random_images(force=False, nums=10):
     """
     Downloads random images asynchronously using aiohttp.
@@ -242,7 +258,11 @@ async def download_random_images(force=False, nums=10):
             logging.error("error reading last run file witn %s ", error)
 
     async with aiohttp.ClientSession() as session:
-        tasks = [download_random_image_with_client(session, queue_no, get_random_client()) for queue_no in range(nums)]
+        client = get_random_client()
+        tasks = [
+            download_random_image_with_client(session, queue_no, client)
+            for queue_no in range(nums)
+        ]
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
         # here results contains asyncio TimeoutError if the download fails , handle the error and don't save the last
@@ -253,20 +273,18 @@ async def download_random_images(force=False, nums=10):
         # how can we count errors and non zereos in the results
         error_count: int = 0
 
-
         for result in results:
             print(result)
             if not isinstance(result, int) or result < 0:
                 error_count += 1
 
-        success_count: int =  len(results) - error_count
-
+        success_count: int = len(results) - error_count
 
         # if error_count >= 0.5 * nums:
         #     logging.error("more than half of the images are not downloaded")
         #     return
 
-        if success_count >0:
+        if success_count > 0:
             logging.info("%s images out of %s downloaded", success_count, nums)
         else:
             logging.error("%s images out of %s downloaded", success_count, nums)
@@ -279,7 +297,10 @@ async def download_random_images(force=False, nums=10):
 
 
 def get_random_client() -> str:
-    return random.choice(["pexels"])
+    choices =["wallhaven", "pexels"]
+    random.shuffle(choices)
+    return random.choice(choices)
+    # return "wallhaven"
 
 
 def weighted_choice_with_values(weighted_items: dict[str:float]):
@@ -328,9 +349,13 @@ def set_wallpaper():
         logging.warning("no images found in wallpaper directory")
         return
 
-    image_path = pathlib.Path(current_directory).joinpath(WALLPAPER, random.choice(file_list))
+    image_path = pathlib.Path(current_directory).joinpath(
+        WALLPAPER, random.choice(file_list)
+    )
     logging.debug("setting wallpaper to %s", image_path)
-    write_to_file(os.path.join(current_directory, "wallpaper_path.txt"), str(image_path))
+    write_to_file(
+        os.path.join(current_directory, "wallpaper_path.txt"), str(image_path)
+    )
 
     subprocess.run(
         [
@@ -380,7 +405,9 @@ def clear_directory(path, no_of_days_int: int = 10):
 
                 if os.path.isfile(file_path):
                     if convert_size(os.path.getsize(file_path), "KB") < 1:
-                        logging.debug("deleting %s because size is less than 1 KB", file_path)
+                        logging.debug(
+                            "deleting %s because size is less than 1 KB", file_path
+                        )
                         os.remove(file_path)
                         continue
 
@@ -469,9 +496,13 @@ async def main():
     """
 
     acquire_control()
-    clear_directory(os.path.join(current_directory, WALLPAPER.strip()),
-                    no_of_days_int=config['not_delete_from_last_day'])
-    await download_random_images(config['force_download'], nums=config['no_of_images_to_download'])
+    clear_directory(
+        os.path.join(current_directory, WALLPAPER.strip()),
+        no_of_days_int=config["not_delete_from_last_day"],
+    )
+    await download_random_images(
+        config["force_download"], nums=config["no_of_images_to_download"]
+    )
     set_wallpaper()
 
     if PYTHON_RUNNING_FROM_CRON:

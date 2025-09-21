@@ -5,7 +5,7 @@ import uuid
 
 import aiohttp
 from config.config import config
-from decorators.retry import retry
+from decorator_utils.retry import retry
 
 
 def get_screen_resolution():
